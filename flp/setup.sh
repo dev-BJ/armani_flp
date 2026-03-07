@@ -66,7 +66,7 @@ echo
 
 echo "============== Build Grid Sample =============="
 #export PATH=/usr/local/cuda/bin:$PATH
-#cd /workspace/armani_lp/flp/grid-sample3d-trt-plugin
+#cd /workspace/armani_flp/flp/grid-sample3d-trt-plugin
 #rm -rf build && mkdir build && cd build
 #cmake .. -DTensorRT_ROOT=/usr/lib/python3.10/dist-packages/tensorrt
 #make
@@ -75,9 +75,9 @@ echo
 
 echo "============== Setup Python Environment =============="
 #cd /workspace/armani_lp
-#rm -rf /workspace/armani_lp/.venv
+#rm -rf /workspace/armani_flp/flp/.venv
 #python -m venv .venv --system-site-packages
-#. /workspace/armani_lp/.venv/bin/activate
+#. /workspace/armani_flp/flp/.venv/bin/activate
 #echo "---------- Python Evironment Set ----------"
 
 echo
