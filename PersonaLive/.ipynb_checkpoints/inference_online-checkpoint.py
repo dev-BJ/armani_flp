@@ -28,14 +28,11 @@ mimetypes.add_type("application/javascript", ".js")
 
 THROTTLE = 0.001 
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 class App:
-    # def __init__(self, config: Args, pipeline):
-    def __init__(self, config: Args):
+    def __init__(self, config: Args, pipeline):
         self.args = config
-        # self.pipeline = pipeline
+        self.pipeline = pipeline
         self.app = FastAPI()
         self.conn_manager = ConnectionManager()
 
@@ -58,7 +55,7 @@ class App:
         async def websocket_endpoint(user_id: uuid.UUID, websocket: WebSocket):
             try:
                 await self.conn_manager.connect(
-                    user_id, websocket, self.args.max_queue_size, device
+                    user_id, websocket, self.args.max_queue_size
                 )
 
                 sender_task = asyncio.create_task(push_results_to_client(user_id, websocket))
@@ -78,8 +75,7 @@ class App:
                 if 'sender_task' in locals():
                     sender_task.cancel()
                 
-                # await self.conn_manager.disconnect(user_id, self.pipeline)
-                await self.conn_manager.disconnect(user_id)
+                await self.conn_manager.disconnect(user_id, self.pipeline)
                 
                 if self.produce_predictions_stop_event is not None:
                     self.produce_predictions_stop_event.set()
@@ -101,7 +97,8 @@ class App:
 
                             if status == "pause":
                                 params = SimpleNamespace(**{"restart": True})
-                                await self.conn_manager.update_data(user_id, params)
+                                # await self.conn_manager.update_data(user_id, params)
+                                self.pipeline.accept_new_params(params)
                             elif status == "resume":
                                 await self.conn_manager.send_json(user_id, {"status": "send_frame"})
                         except Exception as e:
@@ -113,10 +110,7 @@ class App:
                             input_tensor = bytes_to_tensor(image_data)
                             params = SimpleNamespace()
                             params.image = input_tensor
-                            # self.pipeline.accept_new_params(params)
-                            user_session = self.conn_manager.active_connections.get(user_id)
-                            if user_session and user_session.get('pipeline'):
-                                user_session['pipeline'].accept_new_params(params)
+                            self.pipeline.accept_new_params(params)
 
             except WebSocketDisconnect:
                 raise 
@@ -181,9 +175,7 @@ class App:
             
             def prediction_loop(uid, loop, stop_event):
                 while not stop_event.is_set():
-                    # images = self.pipeline.produce_outputs()
-                    user_session = self.conn_manager.active_connections.get(uid)
-                    images = user_session['pipeline'].produce_outputs() if user_session and user_session.get('pipeline') else []
+                    images = self.pipeline.produce_outputs()
                     if len(images) == 0:
                         time.sleep(THROTTLE)
                         continue
@@ -203,20 +195,14 @@ class App:
             queue_size = self.conn_manager.get_user_count()
             return JSONResponse({"queue_size": queue_size})
 
-        # @self.app.get("/api/settings")
-        @self.app.get("/api/settings/{user_id}")
-        # async def settings():
-        async def settings(user_id: uuid.UUID):
-            # info_schema = pipeline.Info.schema()
-            user_session = self.conn_manager.active_connections.get(user_id)
-            info_schema = user_session['pipeline'].Info.schema() if user_session and user_session.get('pipeline') else None
-            # info = pipeline.Info()
-            info = user_session['pipeline'].Info() if user_session and user_session.get('pipeline') else None
-            if info and info.page_content:
+        @self.app.get("/api/settings")
+        async def settings():
+            info_schema = pipeline.Info.schema()
+            info = pipeline.Info()
+            if info.page_content:
                 page_content = markdown2.markdown(info.page_content)
 
-            # input_params = pipeline.InputParams.schema()
-            input_params = user_session['pipeline'].InputParams.schema() if user_session and user_session.get('pipeline') else None
+            input_params = pipeline.InputParams.schema()
             return JSONResponse(
                 {
                     "info": info_schema,
@@ -226,31 +212,21 @@ class App:
                 }
             )
         
-        # @self.app.post("/api/upload_reference_image")
-        @self.app.post("/api/upload_reference_image/{user_id}")
-        # async def upload_reference_image(ref_image: UploadFile = File(...)):
-        async def upload_reference_image(user_id: uuid.UUID, ref_image: UploadFile = File(...)):
+        @self.app.post("/api/upload_reference_image")
+        async def upload_reference_image(ref_image: UploadFile = File(...)):
             try:
                 data = await ref_image.read()
                 img = bytes_to_pil(data)
-                # self.pipeline.fuse_reference(img)
-                user_session = self.conn_manager.active_connections.get(user_id)
-                if user_session and user_session.get('pipeline'):
-                    user_session['pipeline'].fuse_reference(img)
+                self.pipeline.fuse_reference(img)
                 return {"status": "ok"}
             except Exception as e:
                 logging.error(f"Reference image error: {e}")
                 raise HTTPException(status_code=500, detail="Failed to process reference image")
 
-        # @self.app.post("/api/reset")
-        @self.app.post("/api/reset/{user_id}")
-        # async def reset():
-        async def reset(user_id: uuid.UUID):
+        @self.app.post("/api/reset")
+        async def reset():
             try:
-                # self.pipeline.reset()
-                user_session = self.conn_manager.active_connections.get(user_id)
-                if user_session and user_session.get('pipeline'):
-                    user_session['pipeline'].reset()
+                self.pipeline.reset()
             except Exception as e:
                 print(f"Reset Error: {e}")
                 raise HTTPException(status_code=500, detail='Failed to reset pipeline')
@@ -281,8 +257,7 @@ class App:
                 pass
         
         try:
-            # await self.conn_manager.disconnect_all(self.pipeline)
-            await self.conn_manager.disconnect_all()
+            await self.conn_manager.disconnect_all(self.pipeline)
         except Exception as e:
             print(f"[App] Error during disconnect_all: {e}")
         
@@ -317,16 +292,15 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, signal_handler)
     mp.set_start_method("spawn", force=True)
 
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # if config.acceleration == "tensorrt":
-    #     from webcam.vid2vid_trt import Pipeline
-    # else:
-    #     from webcam.vid2vid import Pipeline
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if config.acceleration == "tensorrt":
+        from webcam.vid2vid_trt import Pipeline
+    else:
+        from webcam.vid2vid import Pipeline
     
-    # pipeline = Pipeline(config, device)
+    pipeline = Pipeline(config, device)
     
-    # app_obj = App(config, pipeline)
-    app_obj = App(config)
+    app_obj = App(config, pipeline)
     app = app_obj.app
     app_instance = app_obj
     

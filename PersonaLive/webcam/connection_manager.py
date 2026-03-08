@@ -5,16 +5,9 @@ from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 import logging
 from types import SimpleNamespace
-from .config import config
-# from .vid2vid import Pipeline
+from .vid2vid import Pipeline
 
-if config.acceleration == "tensorrt":
-    from .vid2vid_trt import Pipeline
-else:
-    from .vid2vid import Pipeline
-
-# Connections = Dict[UUID, Dict[str, Union[WebSocket, asyncio.Queue]]]
-Connections = Dict[UUID, Dict[str, Union[WebSocket, asyncio.Queue, Pipeline]]]
+Connections = Dict[UUID, Dict[str, Union[WebSocket, asyncio.Queue]]]
 
 
 class ServerFullException(Exception):
@@ -28,7 +21,7 @@ class ConnectionManager:
         self.active_connections: Connections = {}
 
     async def connect(
-        self, user_id: UUID, websocket: WebSocket, max_queue_size: int = 0, device: str = ""
+        self, user_id: UUID, websocket: WebSocket, max_queue_size: int = 0
     ):
         await websocket.accept()
         user_count = self.get_user_count()
@@ -43,7 +36,6 @@ class ConnectionManager:
             "websocket": websocket,
             "queue": asyncio.Queue(),
             "output_queue": asyncio.Queue(),
-            "pipeline": Pipeline(config, device)
         }
         await websocket.send_json(
             {"status": "connected", "message": "Connected"},
@@ -102,8 +94,7 @@ class ConnectionManager:
                 return user_session["websocket"]
         return None
 
-    # async def disconnect(self, user_id: UUID, pipeline: Pipeline = None):
-    async def disconnect(self, user_id: UUID):
+    async def disconnect(self, user_id: UUID, pipeline: Pipeline = None):
         print(f"[ConnectionManager] Disconnecting user: {user_id}")
         try:
             websocket = self.get_websocket(user_id)
@@ -114,34 +105,24 @@ class ConnectionManager:
             logging.error(f"Error: Exception while closing websocket for {user_id}: {e}")
         finally:
             try:
-                user_session = self.active_connections.get(user_id)
-                if user_session and user_session.get('pipeline'):
-                    try:
-                        user_session['pipeline'].close()
-                        print("[ConnectionManager] Pipeline closed")
-                    except Exception as e:
-                        logging.error(f"Error: Exception while closing pipeline: {e}")
                 self.delete_user(user_id)
                 print(f"[ConnectionManager] User {user_id} removed from connections")
             except Exception as e:
                 logging.error(f"Error: Exception while clearing data for {user_id}: {e}")
 
-    # async def disconnect_all(self, pipeline: Pipeline = None):
-    async def disconnect_all(self):
+    async def disconnect_all(self, pipeline: Pipeline = None):
         """Disconnect all users and close pipeline"""
         print(f"[ConnectionManager] Disconnecting all {len(self.active_connections)} users...")
         user_ids = list(self.active_connections.keys())
         for user_id in user_ids:
-            # await self.disconnect(user_id, pipeline)
-            await self.disconnect(user_id)
+            await self.disconnect(user_id, pipeline)
         
-        #  if pipeline:
-        # if self.active_connections['pipeline']:
-        #     try:
-        #         self.active_connections['pipeline'].close()
-        #         print("[ConnectionManager] Pipeline closed")
-        #     except Exception as e:
-        #         logging.error(f"Error: Exception while closing pipeline: {e}")
+        if pipeline:
+            try:
+                pipeline.close()
+                print("[ConnectionManager] Pipeline closed")
+            except Exception as e:
+                logging.error(f"Error: Exception while closing pipeline: {e}")
 
     async def send_json(self, user_id: UUID, data: Dict):
         try:
