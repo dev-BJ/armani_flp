@@ -128,7 +128,7 @@ def generate_process(
         device): 
     torch.set_grad_enabled(False)
     pipeline = PersonaLive(args, device)
-    chunk_size = 4
+    chunk_size = 2
     
     prepare_event.set()
 
@@ -141,7 +141,7 @@ def generate_process(
             clear_queue(input_queue)
             restart_event.clear()
         print("input_queue size = ", input_queue.qsize())
-        images = read_images_from_queue(input_queue, chunk_size, device, reset_event)
+        images = read_images_from_queue(input_queue, chunk_size, device, reset_event, True)
         if reset_event.is_set():
             pipeline.reset()
             clear_queue(input_queue)
