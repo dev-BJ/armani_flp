@@ -232,6 +232,10 @@ async def metrics():
         }
     }
 
+@app.get("/ping")
+async def ping():
+    return {"status": "healthy"}
+    
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
@@ -425,10 +429,10 @@ if __name__ == "__main__":
     import multiprocessing as mp
     mp.set_start_method("spawn", force=True)
 
-    uvicorn.run(
-        "ws_server:app",   # string import path is safer with multiprocessing
-        host="0.0.0.0",
-        port=8000,
-        loop="asyncio",
-        access_log=None
-    )
+    # uvicorn.run(
+    #     "ws_server:app",   # string import path is safer with multiprocessing
+    #     host="0.0.0.0",
+    #     port=8000,
+    #     loop="asyncio",
+    #     access_log=None
+    # )
