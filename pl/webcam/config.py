@@ -31,7 +31,7 @@ TIMEOUT = float(os.environ.get("TIMEOUT", 0))
 SAFETY_CHECKER = os.environ.get("SAFETY_CHECKER", None) == "True"
 USE_TAESD = os.environ.get("USE_TAESD", "True") == "True"
 ENGINE_DIR = os.environ.get("ENGINE_DIR", "engines")
-ACCELERATION = os.environ.get("ACCELERATION", "xformers")
+ACCELERATION = os.environ.get("ACCELERATION", "tensorrt")
 
 default_host = os.getenv("HOST", "0.0.0.0")
 default_port = int(os.getenv("PORT", "8000"))

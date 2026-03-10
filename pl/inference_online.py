@@ -97,8 +97,7 @@ class App:
 
                             if status == "pause":
                                 params = SimpleNamespace(**{"restart": True})
-                                # await self.conn_manager.update_data(user_id, params)
-                                self.pipeline.accept_new_params(params)
+                                await self.conn_manager.update_data(user_id, params)
                             elif status == "resume":
                                 await self.conn_manager.send_json(user_id, {"status": "send_frame"})
                         except Exception as e:
@@ -163,7 +162,7 @@ class App:
                             frame_time_list.pop(0)
                         last_frame_time = time.time()
                     
-                    await asyncio.sleep(sleep_time)
+                    # await asyncio.sleep(sleep_time)
                     
             except asyncio.CancelledError:
                 pass

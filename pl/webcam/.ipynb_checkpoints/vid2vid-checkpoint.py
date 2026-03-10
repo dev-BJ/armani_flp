@@ -19,6 +19,7 @@ from PIL import Image
 import math
 from src.wrapper import PersonaLive
 import queue
+from queue import Empty, Full
 
 page_content = """<h1 class="text-3xl font-bold">🎭 PersonaLive!</h1>
 <p class="text-sm">
@@ -31,6 +32,8 @@ page_content = """<h1 class="text-3xl font-bold">🎭 PersonaLive!</h1>
 video-to-video pipeline with a MJPEG stream server.
 </p>
 """
+
+INPUT_MAX_QUEUE = 5
 
 
 class Pipeline:
@@ -53,9 +56,10 @@ class Pipeline:
         self.prepare()
 
     def prepare(self):
-        self.input_queue = Queue()
-        self.output_queue = Queue()
+        self.input_queue = Queue(maxsize=3)
+        self.output_queue = Queue(maxsize=10)
         self.reference_queue = Queue()
+
 
         self.prepare_event = Event()
         self.stop_event = Event()
@@ -75,14 +79,40 @@ class Pipeline:
         self.reset_event.set()
         clear_queue(self.output_queue)
 
-    def accept_new_params(self, params: "Pipeline.InputParams"):
-        if hasattr(params, "image"):
-            image_pil = params.image.to(self.device).float() / 255.0
-            image_pil = image_pil * 2. - 1. 
-            image_pil = image_pil.permute(2, 0, 1).unsqueeze(0)
-            self.input_queue.put(image_pil)
+    # def accept_new_params(self, params: "Pipeline.InputParams"):
+    #     if hasattr(params, "image"):
+    #         image_pil = params.image.to(self.device).float() / 255.0
+    #         image_pil = image_pil * 2. - 1. 
+    #         image_pil = image_pil.permute(2, 0, 1).unsqueeze(0)
+    #         if self.input_queue.full():
+    #             try:
+    #                 self.input_queue.get_nowait()
+    #             except queue.Empty:
+    #                 pass
+    #         self.input_queue.put(image_pil)
 
-        if hasattr(params, "restart") and params.restart:
+    #     if hasattr(params, "restart") and params.restart:
+    #         self.restart_event.set()
+    #         clear_queue(self.output_queue)
+
+    def accept_new_params(self, params: "Pipeline.InputParams"):
+    
+        if hasattr(params, "image"):
+            image = params.image.to(self.device).float() / 255.0
+            image = image * 2. - 1.
+            image = image.permute(2, 0, 1).unsqueeze(0)
+            # self.input_queue.put(image)
+            
+            try:
+                self.input_queue.put_nowait(image)
+            except Full:
+                try:
+                    self.input_queue.get_nowait()
+                except Empty:
+                    pass
+                self.input_queue.put_nowait(image)
+    
+        if getattr(params, "restart", False):
             self.restart_event.set()
             clear_queue(self.output_queue)
 
@@ -127,8 +157,12 @@ def generate_process(
         reference_queue,
         device): 
     torch.set_grad_enabled(False)
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.set_float32_matmul_precision("high")
+
     pipeline = PersonaLive(args, device)
-    chunk_size = 4
+    chunk_size = 1
     
     prepare_event.set()
 
@@ -140,8 +174,10 @@ def generate_process(
         if restart_event.is_set():
             clear_queue(input_queue)
             restart_event.clear()
-        print("input_queue size = ", input_queue.qsize())
-        images = read_images_from_queue(input_queue, chunk_size, device, reset_event)
+        # print("input_queue size = ", input_queue.qsize())
+        if time.time() % 1 < 0.01:
+            print("input_queue size =", input_queue.qsize())
+        images = read_images_from_queue(input_queue, chunk_size, device, reset_event, True)
         if reset_event.is_set():
             pipeline.reset()
             clear_queue(input_queue)
@@ -153,8 +189,19 @@ def generate_process(
             reset_event.clear()
             continue
 
+        if len(images) == 0:
+            continue
+
         images = torch.cat(images, dim=0)
         
         video = pipeline.process_input(images)
         for image in video:
-            output_queue.put(image)
+            # output_queue.put(image)
+            try:
+                output_queue.put_nowait(image)
+            except:
+                try:
+                    output_queue.get_nowait()
+                except:
+                    pass
+                output_queue.put_nowait(image)

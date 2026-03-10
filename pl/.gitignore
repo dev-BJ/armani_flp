@@ -3,6 +3,8 @@ __pycache__
 *.pyc
 .DS_Store
 checkpoints
+.pl
+pretrained_weights/*
 results
 venv
 *.egg-info
@@ -12,5 +14,3 @@ dist
 checkpoints_test
 logs
 third_party
-pretrained_weights
-.personalive
