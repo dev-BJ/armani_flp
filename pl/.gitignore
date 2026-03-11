@@ -4,8 +4,13 @@ __pycache__
 .DS_Store
 checkpoints
 .pl
+!pretrained_weights
+!pretrained_weights/onnx
+!pretrained_weights/personalive
+!pretrained_weights/tensorrt
 pretrained_weights/*
 results
+.venv
 venv
 *.egg-info
 build

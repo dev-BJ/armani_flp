@@ -61,7 +61,7 @@ def is_firefox(user_agent: str) -> bool:
     return "Firefox" in user_agent
 
 
-def read_images_from_queue(queue, num_frames_needed, device, stop_event=None, prefer_latest=False):
+def read_images_from_queue(queue, num_frames_needed, device, stop_event=None, prefer_latest=True):
     while queue.qsize() < num_frames_needed:
         if stop_event and stop_event.is_set():
             return None
@@ -70,7 +70,7 @@ def read_images_from_queue(queue, num_frames_needed, device, stop_event=None, pr
     if prefer_latest:
         read_size = queue.qsize()
     else:
-        read_size = min(queue.qsize(), num_frames_needed * 3)
+        read_size = min(queue.qsize(), num_frames_needed * 2)
     images = []
     for _ in range(read_size):
         images.append(queue.get())

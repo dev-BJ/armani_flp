@@ -429,10 +429,11 @@ if __name__ == "__main__":
     import multiprocessing as mp
     mp.set_start_method("spawn", force=True)
 
-    # uvicorn.run(
-    #     "ws_server:app",   # string import path is safer with multiprocessing
-    #     host="0.0.0.0",
-    #     port=8000,
-    #     loop="asyncio",
-    #     access_log=None
-    # )
+    uvicorn.run(
+        "ws_server:app",   # string import path is safer with multiprocessing
+        host="0.0.0.0",
+        port=8000,
+        loop="asyncio",
+        access_log=None,
+        reload=True
+    )

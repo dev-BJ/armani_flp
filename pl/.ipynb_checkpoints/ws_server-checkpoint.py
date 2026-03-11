@@ -56,19 +56,6 @@ def bytes_to_tensor(image_bytes):
     tensor = torch.from_numpy(np_img.copy())
     return tensor
 
-# def bytes_to_tensor(image_bytes):
-#     nparr = np.frombuffer(image_bytes, np.uint8)
-#     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-#     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#     return torch.from_numpy(img)
-
-def array_to_image(image_array: np.ndarray, normalize: bool = True) -> Image.Image:
-    if normalize:
-        image_array = image_array * 255.0
-    image_array = image_array.astype(np.uint8)
-    image = Image.fromarray(image_array)
-    return image
-
 def pil_to_frame(image: Image.Image) -> bytes:
     frame_data = io.BytesIO()
     image.save(frame_data, format="JPEG")
@@ -245,6 +232,10 @@ async def metrics():
         }
     }
 
+@app.get("/ping")
+async def ping():
+    return {"status": "healthy"}
+    
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await websocket.accept()
@@ -443,5 +434,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         loop="asyncio",
-        access_log=None
+        access_log=None,
+        reload=True
     )
