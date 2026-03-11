@@ -127,6 +127,10 @@ def generate_process(
         reference_queue,
         device): 
     torch.set_grad_enabled(False)
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.set_float32_matmul_precision("high")
+    
     pipeline = PersonaLive(args, device)
     chunk_size = 4
     
@@ -140,7 +144,9 @@ def generate_process(
         if restart_event.is_set():
             clear_queue(input_queue)
             restart_event.clear()
-        print("input_queue size = ", input_queue.qsize())
+        # print("input_queue size = ", input_queue.qsize())
+        if time.time() % 1 < 0.01:
+            print("input_queue size =", input_queue.qsize())
         images = read_images_from_queue(input_queue, chunk_size, device, reset_event)
         if reset_event.is_set():
             pipeline.reset()
